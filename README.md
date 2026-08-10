@@ -25,6 +25,12 @@ python src/baseline_model.py
 streamlit run app.py
 ```
 
+This installs only the lightweight application runtime. To run the optional XGBoost, transformer NER, and sentence-embedding training workflows, install the additional training stack:
+
+```bash
+pip install -r requirements-training.txt
+```
+
 Then open `http://localhost:8501`. To run the API instead, use `uvicorn src.api:app --reload --port 8000` and visit `http://127.0.0.1:8000/docs`.
 
 The first semantic scoring request downloads `all-MiniLM-L6-v2` from Hugging Face. For offline demos, run the Phase 1 training and use the included artifacts, or make the model available in the Hugging Face cache before deployment.
@@ -77,6 +83,10 @@ python -m pytest tests -v -p no:cacheprovider
 ```
 
 Continuous integration runs this same command on every push and pull request to `main`.
+
+## Deploy a live demo
+
+Deploy the dashboard with [Streamlit Community Cloud](https://share.streamlit.io): select `Ankitkumar06102005/ResumeIQ`, branch `main`, and entrypoint `app.py`. The live app uses the reliable TF-IDF similarity fallback if the optional sentence-transformer model is not installed. GitHub pushes automatically redeploy the app.
 
 ## Project structure
 
