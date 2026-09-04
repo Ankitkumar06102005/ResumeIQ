@@ -11,6 +11,7 @@ ResumeIQ scores resumes against a job description and ranks applicants for a rec
 - Phase 3: regex NER today and a DistilBERT NER training utility for BIO-labelled data.
 - Phase 4: Streamlit recruiter dashboard, PDF/TXT uploads, adjustable weights, and multi-resume ranking.
 - Phase 5: FastAPI endpoints and a root `app.py` entry point compatible with Hugging Face Spaces.
+- Phase 6: AI Resume Diagnosis & Optimizer — detects critical gaps ("What It Lacks"), provides Google X-Y-Z formula before/after suggestions, audits quantified metrics & power verbs, and generates 95+ tailored sample resume templates.
 
 ## Quick start
 
@@ -103,11 +104,11 @@ models/              serialized Phase 1 and embedding configuration artifacts
 ```
 resume + job description
         |
-normalization -> embeddings / skill gap / entity extraction
+normalization -> dense embeddings / skill gap / entity extraction
         |
-weighted skills + experience + education signals
+weighted skills + role experience + hierarchical education
         |
-explainable ATS score and candidate ranking
+explainable ATS score + AI diagnosis (gaps & suggestions) + tailored template
 ```
 
 The dashboard requires the three recruiter weights to total 1.0. ResumeIQ is a decision-support tool: reviewers should validate results and avoid using it as the sole basis for employment decisions.
