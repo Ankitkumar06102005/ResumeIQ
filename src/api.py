@@ -2,8 +2,9 @@
 api.py — FastAPI backend for ResumeIQ.
 
 Endpoints:
-  POST /score          — score a single resume vs JD
+  POST /score          — score a single resume vs JD with AI insights
   POST /rank           — rank multiple resumes vs one JD
+  POST /score-pdf      — score a PDF resume with AI insights
   GET  /health         — health check
 
 Run:
@@ -23,8 +24,8 @@ from src.scoring_engine import ScoringEngine, ScoringWeights, parse_resume
 
 app = FastAPI(
     title="ResumeIQ API",
-    description="AI-powered resume-to-JD matching and ATS scoring",
-    version="1.0.0",
+    description="AI-powered resume-to-JD matching, ATS scoring, and diagnostic optimizer",
+    version="1.1.0",
 )
 
 app.add_middleware(
@@ -72,6 +73,7 @@ class ScoreResponse(BaseModel):
     entity_match_score: float
     matched_skills: list[str]
     missing_skills: list[str]
+    insights: Optional[dict] = None
 
 
 class RankEntry(BaseModel):
@@ -98,7 +100,7 @@ def health():
 
 @app.post("/score", response_model=ScoreResponse)
 def score_resume(req: ScoreRequest):
-    """Score a single resume against a job description."""
+    """Score a single resume against a job description with AI diagnostic insights."""
     try:
         weights = ScoringWeights(
             skills_match=req.weight_skills,
@@ -122,6 +124,7 @@ def score_resume(req: ScoreRequest):
         entity_match_score=result.entity_match_score,
         matched_skills=result.matched_skills,
         missing_skills=result.missing_skills,
+        insights=result.insights,
     )
 
 
@@ -153,6 +156,7 @@ def rank_resumes(req: RankRequest):
                 "final_score": r.final_score,
                 "matched_skills": r.matched_skills,
                 "missing_skills": r.missing_skills,
+                "gaps": r.insights.get("gaps", []),
             }
             for i, r in enumerate(ranked)
         ]
@@ -200,4 +204,5 @@ async def score_pdf(
         "keyword_coverage": result.keyword_coverage,
         "matched_skills": result.matched_skills,
         "missing_skills": result.missing_skills,
+        "insights": result.insights,
     }

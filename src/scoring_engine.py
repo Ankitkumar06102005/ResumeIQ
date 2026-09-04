@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from src.preprocessing import preprocess
 from src.embeddings import ResumeEmbedder, keyword_gap, extract_skills
 from src.ner_model import RegexNER, normalize_degree, DEGREE_HIERARCHY
+from src.advisor import ResumeAdvisor
 
 # ---------------------------------------------------------------------------
 # Data classes
@@ -58,6 +59,7 @@ class ResumeScore:
     missing_skills: list[str] = field(default_factory=list)
     extracted_entities: dict = field(default_factory=dict)
     weights_used: dict = field(default_factory=dict)
+    insights: dict = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -124,12 +126,14 @@ class ScoringEngine:
         self,
         embedder: Optional[ResumeEmbedder] = None,
         ner: Optional[RegexNER] = None,
+        advisor: Optional[ResumeAdvisor] = None,
         embedder_model: str = "all-MiniLM-L6-v2",
     ):
         # Lazy-load so importing this module doesn't pull in sentence-transformers
         self._embedder = embedder
         self._embedder_model = embedder_model
         self._ner = ner or RegexNER()
+        self._advisor = advisor or ResumeAdvisor()
 
     def _get_embedder(self) -> ResumeEmbedder:
         if self._embedder is None:
@@ -185,6 +189,16 @@ class ScoringEngine:
         ) * 100.0
         final = max(0.0, min(100.0, round(final, 2)))
 
+        # Signal 4: AI Diagnosis, Gaps & Actionable Optimizer
+        insights = self._advisor.analyze(
+            resume_text=resume_text,
+            jd_text=jd_text,
+            matched_skills=gap["matched"],
+            missing_skills=gap["missing"],
+            resume_entities=resume_entities,
+            jd_entities=jd_entities,
+        )
+
         return ResumeScore(
             candidate_name=candidate_name,
             final_score=final,
@@ -199,6 +213,7 @@ class ScoringEngine:
                 "experience_match": w.experience_match,
                 "education_match": w.education_match,
             },
+            insights=insights,
         )
 
     def _semantic_similarity(self, resume_text: str, jd_text: str) -> float:

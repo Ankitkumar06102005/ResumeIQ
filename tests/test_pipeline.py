@@ -177,3 +177,33 @@ def test_corrupt_pdf_raises_readable_value_error():
     import pytest
     with pytest.raises(ValueError, match="Could not extract any readable text|Could not read PDF contents"):
         extract_text_from_pdf(b"%PDF-1.5 \x00\x01 corrupt bytes without text")
+
+
+def test_resume_advisor_identifies_gaps():
+    from src.advisor import ResumeAdvisor
+    advisor = ResumeAdvisor()
+    analysis = advisor.analyze(
+        resume_text="Responsible for Python development. Worked on bug fixes. Skills: Python.",
+        jd_text="Senior Backend Engineer. Bachelor's degree required. Strong Docker, AWS, FastAPI.",
+        matched_skills=["python"],
+        missing_skills=["docker", "aws", "fastapi"],
+        resume_entities={"SKILL": ["python"], "DEGREE": [], "JOB_TITLE": []},
+        jd_entities={"SKILL": ["python", "docker", "aws", "fastapi"], "DEGREE": ["bachelor"], "JOB_TITLE": ["senior backend engineer"]},
+    )
+    categories = [g["category"] for g in analysis["gaps"]]
+    assert "Missing Core Skills" in categories
+    assert "Quantified Impact Deficiency" in categories
+    assert "Passive Phrasing Detected" in categories
+    assert "Education Requirement" in categories
+    assert len(analysis["suggestions"]) >= 2
+    assert "ALEX MORGAN" in analysis["sample_tailored_resume"]
+
+
+def test_scoring_engine_attaches_insights():
+    engine = ScoringEngine(embedder=_FakeEmbedder())
+    result = engine.score("Python developer with Docker", "Python developer with Docker and AWS")
+    assert isinstance(result.insights, dict)
+    assert "gaps" in result.insights
+    assert "suggestions" in result.insights
+    assert "sample_tailored_resume" in result.insights
+

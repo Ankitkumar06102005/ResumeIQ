@@ -54,6 +54,58 @@ st.markdown("""
     }
     .matched { background: #d1fae5; color: #065f46; }
     .missing { background: #fee2e2; color: #991b1b; }
+    .gap-card {
+        background: #fff5f5;
+        border-left: 4px solid #ef4444;
+        border-radius: 8px;
+        padding: 14px 18px;
+        margin-bottom: 12px;
+    }
+    .gap-badge-high {
+        background: #fee2e2;
+        color: #991b1b;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        margin-left: 8px;
+    }
+    .gap-badge-med {
+        background: #fef3c7;
+        color: #92400e;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        margin-left: 8px;
+    }
+    .suggestion-card {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+    .example-before {
+        background: #fff1f2;
+        border-radius: 6px;
+        padding: 10px 14px;
+        color: #9f1239;
+        font-size: 13px;
+        margin-top: 6px;
+        border-left: 3px solid #f43f5e;
+    }
+    .example-after {
+        background: #f0fdf4;
+        border-radius: 6px;
+        padding: 10px 14px;
+        color: #166534;
+        font-size: 13px;
+        margin-top: 6px;
+        border-left: 3px solid #22c55e;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -191,6 +243,73 @@ def single_resume_mode():
             else:
                 st.success("No skill gaps detected.")
 
+        # -------------------------------------------------------------------
+        # AI Diagnosis & Optimization Advisory
+        # -------------------------------------------------------------------
+        insights = getattr(result, "insights", {})
+        if insights:
+            st.markdown("---")
+            st.subheader("🧠 AI Diagnosis & Optimization Advisory")
+            st.markdown("Actionable insights on what this resume lacks, recommended fixes, and an ATS-optimized sample template.")
+
+            tab_gaps, tab_suggestions, tab_sample = st.tabs([
+                "🚨 What It Lacks (Critical Gaps)",
+                "💡 Suggested Changes & Fixes",
+                "✨ Tailored 95+ Resume Template",
+            ])
+
+            with tab_gaps:
+                impact = insights.get("impact_metrics", {})
+                if impact:
+                    m1, m2, m3, m4 = st.columns(4)
+                    m1.metric("Quantified Metrics", f"{impact.get('metric_percentage', 0)}%", help="% of bullet points with numbers, %, or scale")
+                    m2.metric("Impact Grade", impact.get("metric_grade", "N/A"))
+                    m3.metric("Power Verbs", impact.get("power_verbs_count", 0))
+                    m4.metric("Passive Phrases", len(impact.get("weak_phrases_detected", [])))
+
+                gaps = insights.get("gaps", [])
+                if gaps:
+                    for g in gaps:
+                        sev_class = "gap-badge-high" if g["severity"] == "High" else "gap-badge-med"
+                        st.markdown(
+                            f"""<div class="gap-card">
+                                <strong>{g['title']}</strong> <span class="{sev_class}">{g['severity']} Priority</span>
+                                <div style="font-size: 13px; color: #475569; margin-top: 4px;">{g['detail']}</div>
+                            </div>""",
+                            unsafe_allow_html=True,
+                        )
+                else:
+                    st.success("🎉 No critical gaps detected! This resume aligns closely with the job requirements.")
+
+            with tab_suggestions:
+                suggestions = insights.get("suggestions", [])
+                if suggestions:
+                    for s in suggestions:
+                        st.markdown(
+                            f"""<div class="suggestion-card">
+                                <h4 style="margin: 0 0 8px 0; color: #1e293b;">📌 {s['title']}</h4>
+                                <div style="font-size: 14px; color: #334155; margin-bottom: 8px;">{s['action']}</div>
+                                <div class="example-before"><strong>❌ Before:</strong> {s['before']}</div>
+                                <div class="example-after"><strong>✅ After (Google X-Y-Z Formula):</strong> {s['after']}</div>
+                            </div>""",
+                            unsafe_allow_html=True,
+                        )
+                else:
+                    st.info("No immediate changes needed. The resume demonstrates strong metrics and action verbs.")
+
+            with tab_sample:
+                sample_resume = insights.get("sample_tailored_resume", "")
+                if sample_resume:
+                    st.markdown("Use this tailored template as a benchmark to rewrite your resume. It incorporates the missing technical competencies, high metric density, and leadership action verbs.")
+                    st.download_button(
+                        "📥 Download Sample Template (.md)",
+                        sample_resume,
+                        file_name=f"resumeiq_{candidate_name.lower().replace(' ', '_')}_sample.md",
+                        mime="text/markdown",
+                        key="dl_sample_resume",
+                    )
+                    st.code(sample_resume, language="markdown")
+
         with st.expander("🔍 Extracted Entities (NER)"):
             for etype, items in result.extracted_entities.items():
                 if items:
@@ -291,6 +410,13 @@ def batch_ranking_mode():
                 with cb:
                     st.write("**❌ Missing Skills**")
                     _render_skill_chips(r.missing_skills or ["(none)"], "missing")
+
+                insights = getattr(r, "insights", {})
+                gaps = insights.get("gaps", [])
+                if gaps:
+                    st.markdown("**🚨 Key Deficiencies / What This Candidate Lacks:**")
+                    for g in gaps[:2]:
+                        st.markdown(f"- **{g['title']}**: {g['detail']}")
 
         # Download results
         csv = df.to_csv(index=False).encode("utf-8")
