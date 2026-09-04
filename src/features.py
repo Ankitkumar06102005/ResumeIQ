@@ -13,17 +13,30 @@ import joblib
 import os
 import re
 
-# A curated tech-skills vocabulary used for keyword overlap.
-# Extend this list with domain-specific terms as needed.
+# A curated tech-skills vocabulary used for keyword overlap and skill matching.
 SKILLS_VOCAB = [
-    "python", "java", "sql", "javascript", "typescript", "react", "nodejs",
-    "aws", "gcp", "azure", "docker", "kubernetes", "git", "linux",
-    "machine learning", "deep learning", "nlp", "data analysis", "pandas",
-    "numpy", "scikit-learn", "tensorflow", "pytorch", "spark", "hadoop",
-    "tableau", "powerbi", "excel", "r", "scala", "c++", "c#", "golang",
-    "rest api", "graphql", "microservices", "agile", "scrum", "ci/cd",
-    "jenkins", "terraform", "mongodb", "postgresql", "mysql", "redis",
-    "kafka", "airflow", "dbt", "looker",
+    # Programming Languages
+    "python", "java", "javascript", "typescript", "c++", "c#", "golang",
+    "rust", "scala", "kotlin", "swift", "php", "ruby", "sql", "r", "bash",
+    # Frontend & Web
+    "react", "angular", "vue", "svelte", "nextjs", "nodejs", "express",
+    "html", "css", "tailwind", "bootstrap", "sass", "redux", "vite", "webpack",
+    # Backend Frameworks
+    "fastapi", "django", "flask", "spring", "asp.net", "laravel", "rails",
+    # Databases & Storage
+    "postgresql", "mysql", "sqlite", "mongodb", "redis", "elasticsearch",
+    "cassandra", "dynamodb", "snowflake", "bigquery", "oracle",
+    # Cloud & DevOps
+    "aws", "gcp", "azure", "docker", "kubernetes", "terraform", "ansible",
+    "jenkins", "ci/cd", "helm", "linux", "git", "github", "gitlab", "nginx",
+    # AI / ML & Data Engineering
+    "machine learning", "deep learning", "nlp", "computer vision", "llm",
+    "generative ai", "langchain", "pytorch", "tensorflow", "keras",
+    "scikit-learn", "pandas", "numpy", "scipy", "spark", "pyspark",
+    "hadoop", "kafka", "airflow", "dbt", "tableau", "powerbi", "excel", "looker",
+    # Architecture & Practices
+    "rest api", "restful", "graphql", "microservices", "system design",
+    "agile", "scrum", "data analysis",
 ]
 
 
@@ -135,7 +148,14 @@ def _skill_count(text: str) -> int:
 
 def extract_skills(text: str, skills_list: list[str] = SKILLS_VOCAB) -> set[str]:
     """Find whole skill names and avoid substring false positives."""
-    normalized = text.lower().replace("node.js", "nodejs")
+    normalized = (
+        text.lower()
+        .replace("node.js", "nodejs")
+        .replace("react.js", "react")
+        .replace("vue.js", "vue")
+        .replace("next.js", "nextjs")
+        .replace("spring boot", "spring")
+    )
     return {
         skill for skill in skills_list
         if re.search(r"(?<![A-Za-z0-9_])" + re.escape(skill) + r"(?![A-Za-z0-9_])", normalized)

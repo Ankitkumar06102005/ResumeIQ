@@ -140,3 +140,40 @@ def test_keyword_gap_none_matched():
     # Use text with no tokens from SKILLS_VOCAB on either side
     gap = keyword_gap("experienced candidate seeking opportunity", "looking for motivated team player")
     assert gap["coverage"] == 1.0 or gap["missing"] == []  # no JD skills → nothing missing
+
+
+def test_btech_and_international_degrees_recognized():
+    from src.ner_model import RegexNER, normalize_degree
+    ner = RegexNER()
+    res = ner.extract("Graduated with B.Tech in Computer Science and Engineering")
+    assert "bachelor" in res["DEGREE"]
+    assert normalize_degree("M.Tech") == "master"
+    assert normalize_degree("Ph.D.") == "doctorate"
+
+
+def test_masters_degree_satisfies_bachelors_requirement():
+    engine = ScoringEngine(embedder=_FakeEmbedder())
+    result = engine.score(
+        "Python developer holding Master of Science in Software Engineering.",
+        "Python developer. Bachelor's degree required.",
+    )
+    # Master's satisfies Bachelor's requirement -> full education credit (1.0)
+    # 0.5 * 1.0 + 0.3 * 1.0 + 0.2 * 1.0 = 100.0
+    assert result.final_score == 100.0
+
+
+def test_expanded_skills_vocabulary():
+    from src.features import extract_skills
+    skills = extract_skills("Full stack engineer building with FastAPI, Django, React, Next.js, and Tailwind CSS")
+    assert "fastapi" in skills
+    assert "django" in skills
+    assert "react" in skills
+    assert "nextjs" in skills
+    assert "tailwind" in skills
+
+
+def test_corrupt_pdf_raises_readable_value_error():
+    from src.scoring_engine import extract_text_from_pdf
+    import pytest
+    with pytest.raises(ValueError, match="Could not extract any readable text|Could not read PDF contents"):
+        extract_text_from_pdf(b"%PDF-1.5 \x00\x01 corrupt bytes without text")

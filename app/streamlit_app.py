@@ -90,9 +90,13 @@ engine = load_engine()
 
 def _read_upload(uploaded_file) -> str:
     """Read a Streamlit UploadedFile → plain text."""
-    if uploaded_file.name.endswith(".pdf"):
-        return parse_resume(uploaded_file.read())
-    return uploaded_file.read().decode("utf-8", errors="ignore")
+    try:
+        if uploaded_file.name.lower().endswith(".pdf"):
+            return parse_resume(uploaded_file.read())
+        return uploaded_file.read().decode("utf-8", errors="ignore")
+    except Exception as e:
+        st.warning(f"Error reading {uploaded_file.name}: {e}")
+        return ""
 
 
 def _score_color(score: float) -> str:
@@ -240,7 +244,14 @@ def batch_ranking_mode():
             for f in resume_files:
                 name = os.path.splitext(f.name)[0]
                 text = _read_upload(f)
-                resumes.append((name, text))
+                if text and text.strip():
+                    resumes.append((name, text))
+                else:
+                    st.warning(f"Skipping {f.name} — could not extract readable text.")
+
+            if not resumes:
+                st.error("No readable text found in any of the uploaded resumes.")
+                return
 
             try:
                 weights = ScoringWeights(w_skills, w_exp, w_edu)

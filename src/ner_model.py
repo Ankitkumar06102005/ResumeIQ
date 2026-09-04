@@ -33,30 +33,55 @@ ID2LABEL = {i: l for l, i in LABEL2ID.items()}
 # 1. Regex-based NER baseline
 # ---------------------------------------------------------------------------
 
-# Degree patterns
+# Degree patterns & hierarchy
 _DEGREE_PATTERNS = re.compile(
-    r"\b(b\.?s\.?|b\.?a\.?|m\.?s\.?|m\.?a\.?|ph\.?d\.?|m\.?b\.?a\.?|"
-    r"bachelor(?:\'s)?|master(?:\'s)?|doctorate|associate(?:\'s)?)\b",
+    r"\b(b\.?tech(?:nology)?|m\.?tech(?:nology)?|b\.?e\.?|m\.?e\.?|bca|mca|"
+    r"b\.?sc\.?|m\.?sc\.?|b\.?s\.?|b\.?a\.?|m\.?s\.?|m\.?a\.?|ph\.?d\.?|m\.?b\.?a\.?|"
+    r"bachelor(?:\'s)?(?:\s+of\s+[a-zA-Z\s]+)?|"
+    r"master(?:\'s)?(?:\s+of\s+[a-zA-Z\s]+)?|"
+    r"doctorate|doctor\s+of\s+philosophy|associate(?:\'s)?)\b",
     re.IGNORECASE,
 )
+
+DEGREE_HIERARCHY = {
+    "associate": 1,
+    "bachelor": 2,
+    "master": 3,
+    "doctorate": 4,
+}
+
+
+def normalize_degree(deg: str) -> str:
+    """Map any extracted degree string into one of 4 canonical tiers:
+    doctorate, master, bachelor, associate."""
+    d = deg.lower().replace(".", "").replace("'", "").strip()
+    if any(k in d for k in ["phd", "doctorate", "doctor of philosophy"]):
+        return "doctorate"
+    if any(k in d for k in ["master", "ms", "ma", "mtech", "me", "msc", "mba", "mca"]):
+        return "master"
+    if any(k in d for k in ["bachelor", "bs", "ba", "btech", "be", "bsc", "bca"]):
+        return "bachelor"
+    if "associate" in d:
+        return "associate"
+    return d
 
 # Common job title keywords
 _TITLE_PATTERNS = re.compile(
     r"\b(engineer|developer|scientist|analyst|manager|director|architect|"
     r"consultant|specialist|lead|head|intern|associate|senior|junior|staff|"
-    r"principal|vp|cto|ceo|coo|ciso)\b",
+    r"principal|vp|cto|ceo|coo|ciso|administrator|designer)\b",
     re.IGNORECASE,
 )
 
-# Tech skills (hard-coded patterns — extend as needed)
+# Tech skills (patterns aligned with expanded taxonomy)
 _SKILL_PATTERNS = re.compile(
     r"\b(python|java|javascript|typescript|c\+\+|c#|golang|rust|scala|r|"
-    r"sql|nosql|postgresql|mysql|mongodb|redis|elasticsearch|"
-    r"react|angular|vue|nodejs|django|flask|fastapi|spring|"
-    r"aws|gcp|azure|docker|kubernetes|terraform|ansible|jenkins|"
-    r"machine learning|deep learning|nlp|computer vision|"
-    r"pytorch|tensorflow|scikit-learn|pandas|numpy|spark|kafka|"
-    r"git|linux|agile|scrum|rest api|graphql|microservices)\b",
+    r"sql|nosql|postgresql|mysql|mongodb|redis|elasticsearch|cassandra|dynamodb|snowflake|bigquery|"
+    r"react|angular|vue|svelte|nextjs|nodejs|django|flask|fastapi|spring|express|redux|html|css|tailwind|bootstrap|"
+    r"aws|gcp|azure|docker|kubernetes|terraform|ansible|jenkins|ci/cd|helm|linux|git|github|gitlab|"
+    r"machine learning|deep learning|nlp|computer vision|llm|generative ai|langchain|"
+    r"pytorch|tensorflow|keras|scikit-learn|pandas|numpy|spark|pyspark|hadoop|kafka|airflow|dbt|tableau|powerbi|looker|"
+    r"rest api|restful|graphql|microservices|agile|scrum)\b",
     re.IGNORECASE,
 )
 
@@ -75,9 +100,12 @@ class RegexNER:
     """
 
     def extract(self, text: str) -> dict[str, list[str]]:
+        raw_degrees = [m.group().lower() for m in _DEGREE_PATTERNS.finditer(text)]
+        normalized_degrees = sorted({normalize_degree(d) for d in raw_degrees})
+        normalized_text = text.lower().replace("node.js", "nodejs").replace("next.js", "nextjs")
         return {
-            "SKILL": list({m.group().lower() for m in _SKILL_PATTERNS.finditer(text)}),
-            "DEGREE": list({m.group().lower() for m in _DEGREE_PATTERNS.finditer(text)}),
+            "SKILL": list({m.group().lower() for m in _SKILL_PATTERNS.finditer(normalized_text)}),
+            "DEGREE": normalized_degrees,
             "COMPANY": list({m.group() for m in _COMPANY_PATTERNS.finditer(text)}),
             "JOB_TITLE": list({m.group().lower() for m in _TITLE_PATTERNS.finditer(text)}),
         }

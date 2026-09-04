@@ -177,7 +177,7 @@ async def score_pdf(
         if not pdf_bytes:
             raise ValueError("The uploaded PDF is empty")
         resume_text = parse_resume(pdf_bytes)
-    except (ImportError, ValueError, OSError) as e:
+    except Exception as e:
         raise HTTPException(status_code=422, detail=f"Could not read PDF: {e}")
 
     try:

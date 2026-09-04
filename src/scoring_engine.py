@@ -24,7 +24,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from src.preprocessing import preprocess
 from src.embeddings import ResumeEmbedder, keyword_gap, extract_skills
-from src.ner_model import RegexNER
+from src.ner_model import RegexNER, normalize_degree, DEGREE_HIERARCHY
 
 # ---------------------------------------------------------------------------
 # Data classes
@@ -66,21 +66,30 @@ class ResumeScore:
 
 def extract_text_from_pdf(file_bytes: bytes) -> str:
     """Extract plain text from a PDF file given its raw bytes."""
+    text = ""
+    # Try pdfminer.six first
     try:
         from pdfminer.high_level import extract_text_to_fp
         from pdfminer.layout import LAParams
 
         output = io.StringIO()
         extract_text_to_fp(io.BytesIO(file_bytes), output, laparams=LAParams())
-        return output.getvalue()
-    except ImportError:
-        # Fallback: PyPDF2
+        text = output.getvalue().strip()
+    except Exception:
+        text = ""
+
+    # Fallback to PyPDF2 if pdfminer produced empty text or failed
+    if not text:
         try:
             import PyPDF2
             reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
-            return "\n".join(page.extract_text() or "" for page in reader.pages)
-        except ImportError:
-            raise ImportError("Install pdfminer.six or PyPDF2 for PDF parsing")
+            text = "\n".join(page.extract_text() or "" for page in reader.pages).strip()
+        except Exception as e:
+            raise ValueError(f"Could not read PDF contents: {e}")
+
+    if not text:
+        raise ValueError("Could not extract any readable text from this PDF. It may be scanned or image-only.")
+    return text
 
 
 def parse_resume(source) -> str:
@@ -164,7 +173,7 @@ class ScoringEngine:
         # Weighted combination
         # skills_match weight ← embedding sim + keyword coverage (averaged)
         skills_signal = (emb_sim + coverage) / 2.0
-        # experience_match weight ← entity match
+        # experience_match weight ← entity match (role + domain alignment)
         exp_signal = entity_score
         # education_match weight ← degree entity overlap specifically
         edu_signal = _degree_overlap(resume_entities, jd_entities)
@@ -229,24 +238,55 @@ class ScoringEngine:
 
 def _compute_entity_match(resume_ents: dict, jd_ents: dict) -> float:
     """
-    Fraction of JD entities that also appear in the resume.
-    Averaged across entity types.
+    Evaluate alignment on role titles and technical domains.
+    Does not unfairly penalize candidates for not working at the JD's company.
     """
     scores = []
-    for etype in ["SKILL", "JOB_TITLE", "COMPANY"]:
-        r_set = set(resume_ents.get(etype, []))
-        j_set = set(jd_ents.get(etype, []))
-        if j_set:
-            scores.append(len(r_set & j_set) / len(j_set))
+    # Primary signal: Role / Job title alignment
+    r_titles = set(resume_ents.get("JOB_TITLE", []))
+    j_titles = set(jd_ents.get("JOB_TITLE", []))
+    if j_titles:
+        title_overlap = len(r_titles & j_titles) / len(j_titles)
+        scores.append(title_overlap)
+
+    # Secondary signal: Domain skills context
+    r_skills = set(resume_ents.get("SKILL", []))
+    j_skills = set(jd_ents.get("SKILL", []))
+    if j_skills:
+        skill_overlap = len(r_skills & j_skills) / len(j_skills)
+        scores.append(skill_overlap)
+
+    # Company match is a bonus if candidate has company context matching JD
+    r_comps = set(resume_ents.get("COMPANY", []))
+    j_comps = set(jd_ents.get("COMPANY", []))
+    if j_comps and r_comps:
+        comp_overlap = len(r_comps & j_comps) / len(j_comps)
+        if comp_overlap > 0:
+            scores.append(1.0)
+
     return float(np.mean(scores)) if scores else 0.5  # default neutral
 
 
 def _degree_overlap(resume_ents: dict, jd_ents: dict) -> float:
-    """Specific degree-level match — returns 1.0 if degree requirement met."""
-    r_degrees = set(resume_ents.get("DEGREE", []))
-    j_degrees = set(jd_ents.get("DEGREE", []))
+    """
+    Hierarchical degree matching:
+    If JD specifies a degree, candidate meets requirement if they hold
+    that degree tier or higher (e.g. Master's satisfies Bachelor's).
+    """
+    r_degrees = [normalize_degree(d) for d in resume_ents.get("DEGREE", [])]
+    j_degrees = [normalize_degree(d) for d in jd_ents.get("DEGREE", [])]
+
     if not j_degrees:
-        return 0.75  # JD doesn't specify — partial credit
-    if r_degrees & j_degrees:
+        return 0.75  # JD doesn't specify — neutral baseline credit
+
+    if not r_degrees:
+        return 0.0  # JD requires degree, resume has none
+
+    jd_level = max(DEGREE_HIERARCHY.get(d, 0) for d in j_degrees)
+    candidate_level = max(DEGREE_HIERARCHY.get(d, 0) for d in r_degrees)
+
+    if candidate_level >= jd_level:
         return 1.0
+    if candidate_level > 0:
+        return round(candidate_level / max(jd_level, 1), 2)
     return 0.0
