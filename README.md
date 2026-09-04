@@ -1,5 +1,9 @@
 # ResumeIQ
 
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://resumeiq-partner.streamlit.app/)
+
+> 🚀 **Live Demo:** [https://resumeiq-partner.streamlit.app/](https://resumeiq-partner.streamlit.app/)
+
 An explainable AI-assisted applicant-tracking prototype that scores and ranks resumes against a job description. It provides a Streamlit recruiter dashboard and a FastAPI backend, with deterministic fallbacks when the optional embedding model is unavailable.
 
 ResumeIQ scores resumes against a job description and ranks applicants for a recruiter. It combines keyword coverage, semantic similarity, and resume entities into an explainable 0-100 score.
@@ -85,9 +89,11 @@ python -m pytest tests -v -p no:cacheprovider
 
 Continuous integration runs this same command on every push and pull request to `main`.
 
-## Deploy a live demo
+## Live demo
 
-Deploy the dashboard with [Streamlit Community Cloud](https://share.streamlit.io): select `Ankitkumar06102005/ResumeIQ`, branch `main`, and entrypoint `app.py`. The live app uses the reliable TF-IDF similarity fallback if the optional sentence-transformer model is not installed. GitHub pushes automatically redeploy the app.
+- **Live Streamlit App:** [https://resumeiq-partner.streamlit.app/](https://resumeiq-partner.streamlit.app/)
+
+Deployed with [Streamlit Community Cloud](https://share.streamlit.io): branch `main`, entrypoint `app.py`. The live app uses the reliable TF-IDF similarity fallback if the optional sentence-transformer model is not installed. GitHub pushes automatically redeploy the app.
 
 ## Project structure
 

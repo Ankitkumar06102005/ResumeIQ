@@ -93,9 +93,19 @@ class RankRequest(BaseModel):
 # Endpoints
 # ---------------------------------------------------------------------------
 
+@app.get("/")
+def root():
+    return {
+        "service": "ResumeIQ API",
+        "status": "ok",
+        "docs": "/docs",
+        "live_demo": "https://resumeiq-partner.streamlit.app/",
+    }
+
+
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "ResumeIQ"}
+    return {"status": "ok", "service": "ResumeIQ", "live_demo": "https://resumeiq-partner.streamlit.app/"}
 
 
 @app.post("/score", response_model=ScoreResponse)

@@ -126,6 +126,10 @@ if abs(total_w - 1.0) > 0.01:
 
 mode = st.sidebar.radio("Mode", ["Single Resume", "Batch Ranking"])
 
+st.sidebar.markdown("---")
+st.sidebar.markdown("🌐 **[Live App](https://resumeiq-partner.streamlit.app/)**")
+st.sidebar.markdown("💻 **[GitHub Repository](https://github.com/Ankitkumar06102005/ResumeIQ)**")
+
 # ---------------------------------------------------------------------------
 # Engine — cached so the embedding model only loads once
 # ---------------------------------------------------------------------------
