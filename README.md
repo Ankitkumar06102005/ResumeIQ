@@ -1,25 +1,93 @@
-# ResumeIQ
+<div align="center">
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://resumeiq-partner.streamlit.app/)
+# 📄 ResumeIQ
+### *Explainable AI for Resume–Job Matching*
 
-> 🚀 **Live Demo:** [https://resumeiq-partner.streamlit.app/](https://resumeiq-partner.streamlit.app/)
+Turn resumes into actionable hiring insights.
 
-An explainable AI-assisted applicant-tracking prototype that scores and ranks resumes against a job description. It provides a Streamlit recruiter dashboard and a FastAPI backend, with deterministic fallbacks when the optional embedding model is unavailable.
+[![Live App](https://img.shields.io/badge/Live%20Demo-Streamlit-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://resumeiq-partner.streamlit.app/)
+![Python](https://img.shields.io/badge/Python-3.10--3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?style=for-the-badge&logo=fastapi)
+![NLP](https://img.shields.io/badge/NLP-Explainable%20Scoring-8E44AD?style=for-the-badge)
 
-ResumeIQ scores resumes against a job description and ranks applicants for a recruiter. It combines keyword coverage, semantic similarity, and resume entities into an explainable 0-100 score.
+</div>
 
-## Included capabilities
+---
 
-- Phase 1: TF-IDF similarity, keyword overlap, classical classifiers, cross-validation, and confusion matrices.
-- Phase 2: `all-MiniLM-L6-v2` sentence embeddings plus matched and missing skill detection.
-- Phase 3: regex NER today and a DistilBERT NER training utility for BIO-labelled data.
-- Phase 4: Streamlit recruiter dashboard, PDF/TXT uploads, adjustable weights, and multi-resume ranking.
-- Phase 5: FastAPI endpoints and a root `app.py` entry point compatible with Hugging Face Spaces.
-- Phase 6: AI Resume Diagnosis & Optimizer — detects critical gaps ("What It Lacks"), provides Google X-Y-Z formula before/after suggestions, audits quantified metrics & power verbs, and generates 95+ tailored sample resume templates.
+## 🎯 Overview
 
-## Quick start
+ResumeIQ is an explainable AI-assisted applicant-tracking prototype that scores and ranks resumes against a job description. It combines lexical similarity, semantic embeddings, skill-gap detection, entity extraction, and recruiter-adjustable weights to produce an interpretable 0–100 score.
 
-Use Python 3.10-3.12 (the pinned PyTorch release is not compatible with Python 3.13).
+The system also diagnoses resume weaknesses, suggests quantified X-Y-Z improvements, audits power verbs and metrics, and generates tailored sample resume templates.
+
+## 🧠 Architecture
+
+```mermaid
+flowchart TD
+    R[Resume PDF / TXT] --> APP[Streamlit Recruiter Dashboard]
+    JD[Job Description] --> APP
+    APP --> API[FastAPI Service]
+    APP --> ENG[Scoring Engine]
+    API --> ENG
+    R --> EXT[Text Extraction]
+    EXT --> NORM[Normalization / NLP Preprocessing]
+    JD --> NORM
+    NORM --> TF[TF-IDF Similarity]
+    NORM --> EMB[MiniLM Sentence Embeddings]
+    NORM --> SK[Skill Coverage + Gap Detection]
+    NORM --> ENT[Entity Extraction]
+    TF --> SCORE[Weighted Explainable Score]
+    EMB --> SCORE
+    SK --> SCORE
+    ENT --> SCORE
+    SCORE --> RANK[Candidate Ranking]
+    SCORE --> DIAG[AI Resume Diagnosis]
+    DIAG --> OPT[Actionable Suggestions + X-Y-Z Rewrites]
+    OPT --> OUT[Recruiter Insights]
+    RANK --> OUT
+```
+
+## 🔄 Processing workflow
+
+1. **Ingest:** upload one or multiple resumes and provide a job description.
+2. **Extract:** parse PDF/TXT content into normalized text.
+3. **Represent:** compute lexical features with TF-IDF and optionally semantic vectors with `all-MiniLM-L6-v2`.
+4. **Compare:** evaluate keyword coverage, semantic similarity, skills, entities, experience, and education signals.
+5. **Score:** combine enabled signals using recruiter-controlled weights into an explainable 0–100 score.
+6. **Rank:** sort candidates and expose matched and missing evidence.
+7. **Improve:** generate diagnosis, quantified rewrite suggestions, power-verb audits, and tailored templates.
+
+## 🧪 Modeling phases
+
+| Phase | Implementation |
+|---|---|
+| 1 | TF-IDF, keyword overlap, classical classifiers, cross-validation, confusion matrices |
+| 2 | `all-MiniLM-L6-v2` embeddings and skill-gap detection |
+| 3 | Regex NER with optional DistilBERT NER training utility |
+| 4 | Streamlit dashboard, uploads, adjustable weights, multi-resume ranking |
+| 5 | FastAPI endpoints and Hugging Face Spaces-compatible entry point |
+| 6 | AI diagnosis, X-Y-Z suggestions, metrics/power-verb audit, tailored templates |
+
+## 📊 Phase 1 benchmark
+
+| Model | Accuracy | Precision | Recall | F1 |
+|---|---:|---:|---:|---:|
+| Logistic Regression | 0.7565 | 0.7865 | 0.7042 | 0.7431 |
+| Random Forest | 0.8179 | 0.8319 | 0.7968 | 0.8140 |
+| XGBoost | 0.8159 | 0.8369 | 0.7847 | 0.8100 |
+
+## 🔌 API
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/health` | Service health |
+| POST | `/score` | Score one resume/JD pair |
+| POST | `/rank` | Rank multiple candidates |
+| POST | `/score-pdf` | Score an uploaded PDF resume |
+
+Interactive docs: `http://127.0.0.1:8000/docs`
+
+## 🚀 Quick start
 
 ```bash
 python -m venv .venv
@@ -30,91 +98,42 @@ python src/baseline_model.py
 streamlit run app.py
 ```
 
-This installs only the lightweight application runtime. To run the optional XGBoost, transformer NER, and sentence-embedding training workflows, install the additional training stack:
+Optional training stack:
 
 ```bash
 pip install -r requirements-training.txt
 ```
 
-Then open `http://localhost:8501`. To run the API instead, use `uvicorn src.api:app --reload --port 8000` and visit `http://127.0.0.1:8000/docs`.
-
-The first semantic scoring request downloads `all-MiniLM-L6-v2` from Hugging Face. For offline demos, run the Phase 1 training and use the included artifacts, or make the model available in the Hugging Face cache before deployment.
-
-To use spaCy lemmatization during Phase 1 training, install its English model and set the opt-in flag. The app deliberately falls back to lightweight normalization otherwise, so it can start on restricted hosts.
-
-```bash
-python -m spacy download en_core_web_sm
-$env:RESUMEIQ_USE_SPACY = "1"
-python src/baseline_model.py
-```
-
-## Data and training
-
-The source dataset and generated training pairs are intentionally excluded from Git to keep the repository lightweight. Place a compatible `Resume.csv` in the project root, then run `python src/prepare_data.py` to create labelled resume/JD pairs. The expected training columns are `resume_text`, `jd_text`, and `label` (1 for match, 0 for no match). Results are saved under `data/processed/`; the best classical model and feature builder are saved under `models/`.
-
-Run Phase 2 after Phase 1:
-
-```bash
-python src/embeddings.py
-```
-
-This writes a side-by-side F1 comparison to `data/processed/phase1_vs_phase2.csv`.
-
-The checked-in Phase 1 run produced the following held-out metrics on the generated resume/JD-pair dataset:
-
-| Model | Accuracy | Precision | Recall | F1 |
-| --- | ---: | ---: | ---: | ---: |
-| Logistic Regression | 0.7565 | 0.7865 | 0.7042 | 0.7431 |
-| Random Forest | 0.8179 | 0.8319 | 0.7968 | 0.8140 |
-| XGBoost | 0.8159 | 0.8369 | 0.7847 | 0.8100 |
-
-## Run the API
+Run the API:
 
 ```bash
 uvicorn src.api:app --reload --port 8000
 ```
 
-- `GET /health` verifies the service.
-- `POST /score` scores one JSON resume/JD pair.
-- `POST /rank` ranks a JSON list of candidates against one JD.
-- `POST /score-pdf` accepts a PDF resume and form fields.
-
-Interactive endpoint documentation is available at `http://127.0.0.1:8000/docs`.
-
-## Verify
+Run tests:
 
 ```bash
 python -m pytest tests -v -p no:cacheprovider
 ```
 
-Continuous integration runs this same command on every push and pull request to `main`.
+## 📁 Structure
 
-## Live demo
-
-- **Live Streamlit App:** [https://resumeiq-partner.streamlit.app/](https://resumeiq-partner.streamlit.app/)
-
-Deployed with [Streamlit Community Cloud](https://share.streamlit.io): branch `main`, entrypoint `app.py`. The live app uses the reliable TF-IDF similarity fallback if the optional sentence-transformer model is not installed. GitHub pushes automatically redeploy the app.
-
-## Project structure
-
-```
+```text
 app/                 Streamlit recruiter dashboard
-src/                 scoring engine, API, NLP, and training modules
-tests/               pipeline regression tests
-data/processed/      generated evaluation outputs and training pairs
-models/              serialized Phase 1 and embedding configuration artifacts
+src/                 scoring, API, NLP, and training modules
+tests/               regression tests
+data/processed/      generated training and evaluation outputs
+models/              serialized model artifacts
 ```
 
-## Scoring model
+## ⚖️ Responsible-use note
 
-```
-resume + job description
-        |
-normalization -> dense embeddings / skill gap / entity extraction
-        |
-weighted skills + role experience + hierarchical education
-        |
-explainable ATS score + AI diagnosis (gaps & suggestions) + tailored template
-```
+ResumeIQ is a decision-support tool. Recruiters should validate outputs, inspect evidence, and avoid using an automated score as the sole basis for employment decisions.
 
-The dashboard requires the three recruiter weights to total 1.0. ResumeIQ is a decision-support tool: reviewers should validate results and avoid using it as the sole basis for employment decisions.
+---
+
+<div align="center">
+
+[🚀 Try ResumeIQ Live](https://resumeiq-partner.streamlit.app/)
+
+</div>
