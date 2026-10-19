@@ -176,11 +176,17 @@ def single_resume_mode():
         with main:
             st.markdown('<div class="rr-card-title">01 · Job description</div>', unsafe_allow_html=True)
             jd_upload = st.file_uploader("Upload job description (.txt)", type=["txt"], key="rr_jd_upload")
-            jd_text = st.text_area("Paste the job description", value=read_upload(jd_upload) if jd_upload else "", height=205, placeholder="Paste the role requirements, responsibilities, and preferred skills…", key="rr_jd_text")
+            if jd_upload and st.session_state.get("_rr_loaded_jd_name") != jd_upload.name:
+                st.session_state["rr_jd_text"] = read_upload(jd_upload)
+                st.session_state["_rr_loaded_jd_name"] = jd_upload.name
+            jd_text = st.text_area("Paste the job description", height=205, placeholder="Paste the role requirements, responsibilities, and preferred skills…", key="rr_jd_text")
         with side:
             st.markdown('<div class="rr-card-title">02 · Resume document</div>', unsafe_allow_html=True)
             resume_upload = st.file_uploader("Upload resume (.pdf or .txt)", type=["pdf", "txt"], key="rr_resume_upload")
-            resume_text = st.text_area("Or paste resume text", value=read_upload(resume_upload) if resume_upload else "", height=205, placeholder="Paste your resume text or upload a PDF/TXT file…", key="rr_resume_text")
+            if resume_upload and st.session_state.get("_rr_loaded_resume_name") != resume_upload.name:
+                st.session_state["rr_resume_text"] = read_upload(resume_upload)
+                st.session_state["_rr_loaded_resume_name"] = resume_upload.name
+            resume_text = st.text_area("Or paste resume text", height=205, placeholder="Paste your resume text or upload a PDF/TXT file…", key="rr_resume_text")
         candidate = st.text_input("Candidate name (optional)", value="Candidate", key="rr_candidate")
         submitted = st.form_submit_button("✧ Analyze resume", type="primary", use_container_width=True)
     if submitted:
@@ -209,7 +215,10 @@ def single_resume_mode():
 def batch_ranking_mode():
     header("CANDIDATE WORKSPACE", "Batch ranking", "Rank multiple resumes against the same role using ResumeIQ’s existing scoring engine.")
     jd_upload = st.file_uploader("Upload job description (.txt)", type=["txt"], key="rr_batch_jd_upload")
-    jd_text = st.text_area("Job description", value=read_upload(jd_upload) if jd_upload else "", height=170, key="rr_batch_jd")
+    if jd_upload and st.session_state.get("_rr_loaded_batch_jd_name") != jd_upload.name:
+        st.session_state["rr_batch_jd"] = read_upload(jd_upload)
+        st.session_state["_rr_loaded_batch_jd_name"] = jd_upload.name
+    jd_text = st.text_area("Job description", height=170, key="rr_batch_jd")
     files = st.file_uploader("Upload resumes (PDF or TXT)", type=["pdf", "txt"], accept_multiple_files=True, key="rr_batch_files")
     if st.button("Rank candidates", type="primary", use_container_width=True):
         if not jd_text.strip() or not files:
