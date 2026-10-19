@@ -1,442 +1,291 @@
 """
-streamlit_app.py — ResumeIQ recruiter dashboard.
-
-Two modes:
-  1. Single Resume — paste/upload one resume, get a detailed score breakdown
-  2. Batch Ranking — upload multiple resumes, get a ranked leaderboard
-
-Run:
-    streamlit run app/streamlit_app.py
+ResumeIQ — lavender document-intelligence workspace.
+The scoring and parsing work is delegated to the existing ScoringEngine.
 """
-
+import html
 import os
 import sys
-import io
 import pandas as pd
 import streamlit as st
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.scoring_engine import ScoringEngine, ScoringWeights, parse_resume
 
-# ---------------------------------------------------------------------------
-# Page config
-# ---------------------------------------------------------------------------
 st.set_page_config(
-    page_title="ResumeIQ — ATS Scoring Engine",
+    page_title="ResumeIQ — Resume Intelligence",
     page_icon="📄",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# ---------------------------------------------------------------------------
-# Custom CSS — minimal clean look
-# ---------------------------------------------------------------------------
 st.markdown("""
 <style>
-    .score-box {
-        background: #f0f4ff;
-        border-radius: 12px;
-        padding: 24px;
-        text-align: center;
-        border: 2px solid #4f46e5;
-    }
-    .score-number {
-        font-size: 64px;
-        font-weight: 800;
-        color: #4f46e5;
-    }
-    .skill-chip {
-        display: inline-block;
-        padding: 4px 10px;
-        border-radius: 20px;
-        margin: 3px;
-        font-size: 13px;
-    }
-    .matched { background: #d1fae5; color: #065f46; }
-    .missing { background: #fee2e2; color: #991b1b; }
-    .gap-card {
-        background: #fff5f5;
-        border-left: 4px solid #ef4444;
-        border-radius: 8px;
-        padding: 14px 18px;
-        margin-bottom: 12px;
-    }
-    .gap-badge-high {
-        background: #fee2e2;
-        color: #991b1b;
-        padding: 2px 8px;
-        border-radius: 12px;
-        font-size: 11px;
-        font-weight: 700;
-        text-transform: uppercase;
-        margin-left: 8px;
-    }
-    .gap-badge-med {
-        background: #fef3c7;
-        color: #92400e;
-        padding: 2px 8px;
-        border-radius: 12px;
-        font-size: 11px;
-        font-weight: 700;
-        text-transform: uppercase;
-        margin-left: 8px;
-    }
-    .suggestion-card {
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 10px;
-        padding: 16px;
-        margin-bottom: 16px;
-    }
-    .example-before {
-        background: #fff1f2;
-        border-radius: 6px;
-        padding: 10px 14px;
-        color: #9f1239;
-        font-size: 13px;
-        margin-top: 6px;
-        border-left: 3px solid #f43f5e;
-    }
-    .example-after {
-        background: #f0fdf4;
-        border-radius: 6px;
-        padding: 10px 14px;
-        color: #166534;
-        font-size: 13px;
-        margin-top: 6px;
-        border-left: 3px solid #22c55e;
-    }
+:root { color-scheme: light; }
+.stApp { background: #8d7bd2; }
+[data-testid="stAppViewContainer"] > .main { background: #f2edff; }
+[data-testid="stHeader"] { background: rgba(242,237,255,.97); }
+[data-testid="stToolbar"] { background: rgba(242,237,255,.96); }
+.block-container { padding: 1.15rem 1.55rem 1.6rem; max-width: 1600px; }
+section[data-testid="stSidebar"] { background: #e8e0fb; border-right: 1px solid #d0c3f1; }
+section[data-testid="stSidebar"] > div { padding-top: 1rem; }
+h1,h2,h3,h4 { color: #29203f !important; letter-spacing: -.025em; font-weight: 750 !important; }
+[data-testid="stMarkdownContainer"] h1,
+[data-testid="stMarkdownContainer"] h2,
+[data-testid="stMarkdownContainer"] h3,
+[data-testid="stMarkdownContainer"] h4 { color: #29203f !important; }
+p, label, [data-testid="stMarkdownContainer"] { color: #514766; }
+[data-testid="stCaptionContainer"], .rr-subtitle { color: #655a7d !important; }
+div[data-testid="stVerticalBlockBorderWrapper"] { border-color: #d8cdf2 !important; border-radius: 16px !important; }
+div[data-testid="stMetric"] { background: #fff; border: 1px solid #d8cdf2; border-radius: 14px; padding: 15px 17px; }
+div[data-testid="stMetricLabel"] { color: #625777; }
+div[data-testid="stMetricValue"] { color: #29203f; }
+.stButton > button, .stDownloadButton > button { border-radius: 11px; border: 1px solid #b7a7e8; color: #4b368e; background: #e8e0fb; font-weight: 650; min-height: 2.5rem; }
+.stButton > button[kind="primary"], .stFormSubmitButton > button { background: #6d56bd; border: 1px solid #6d56bd; color: #fff; }
+.stButton > button:hover, .stDownloadButton > button:hover { border-color: #7960ce; color: #39256f; background: #ded3fa; }
+.stTextInput input, .stTextArea textarea, [data-baseweb="select"] > div { border-color: #c9b9ef; border-radius: 10px; background: #fff; color: #29203f; }
+.stTextInput input:focus, .stTextArea textarea:focus { border-color: #6d56bd; box-shadow: 0 0 0 1px #6d56bd; }
+hr { border-color: #d8cdf2; }
+.rr-brand { display:flex; align-items:center; gap:11px; padding: 8px 0 22px; }
+.rr-mark { width:39px;height:39px;border-radius:14px;background:#d4c6fa;color:#49358f;display:flex;align-items:center;justify-content:center;font-size:21px;font-weight:800; }
+.rr-brand-name { color:#29203f;font-family:Georgia,serif;font-size:23px;font-weight:700;line-height:1.1; }
+.rr-brand-sub { color:#625777;font-size:9px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;margin-top:4px; }
+.rr-eyebrow { color:#68568f;font-size:10px;font-weight:850;letter-spacing:.16em;text-transform:uppercase; }
+.rr-title { color:#29203f;font-size:27px;font-weight:800;letter-spacing:-.04em;margin:3px 0 5px; }
+.rr-subtitle { color:#655a7d;font-size:13px;line-height:1.55; }
+.rr-card { background:#fff;border:1px solid #d8cdf2;border-radius:16px;padding:19px 20px;box-shadow:0 7px 24px rgba(66,43,125,.08);margin-bottom:13px; }
+.rr-card-title { color:#5e4a88;font-size:10px;font-weight:850;letter-spacing:.14em;text-transform:uppercase;margin-bottom:12px; }
+.rr-pill { display:inline-block;border-radius:999px;padding:4px 9px;background:#e4f5eb;color:#26764e;font-size:10px;font-weight:750;margin:2px 4px 2px 0; }
+.rr-pill-warn { background:#fff0dc;color:#945b14; }
+.rr-chat { background:#f7f3ff;border:1px solid #e0d5f8;border-radius:15px;padding:15px;margin-bottom:10px; }
+.rr-chat-label { color:#5b43a1;font-size:10px;font-weight:850;margin-bottom:7px; }
+.rr-muted { color:#6c617f;font-size:11px; }
+.rr-score { color:#5f47b1;font-size:45px;font-weight:800;line-height:1.05;letter-spacing:-.05em; }
+.rr-divider { height:1px;background:#e2d8f7;margin:13px 0; }
+@media (max-width: 900px) { .block-container { padding: .8rem .75rem 1.2rem; } .rr-title {font-size:23px;} }
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------------------------------------------------------------------
-# Sidebar — weights + mode selection
-# ---------------------------------------------------------------------------
-st.sidebar.title("⚙️ Scoring Configuration")
-st.sidebar.markdown("Adjust how much each factor contributes to the final score.")
-
-w_skills = st.sidebar.slider("Skills Match Weight", 0.0, 1.0, 0.50, 0.05)
-w_exp = st.sidebar.slider("Experience Match Weight", 0.0, 1.0, 0.30, 0.05)
-w_edu = st.sidebar.slider("Education Match Weight", 0.0, 1.0, 0.20, 0.05)
-
-total_w = round(w_skills + w_exp + w_edu, 2)
-if abs(total_w - 1.0) > 0.01:
-    st.sidebar.warning(f"⚠️ Weights sum to {total_w:.2f} — they must sum to 1.0")
-    st.sidebar.stop()
-
-mode = st.sidebar.radio("Mode", ["Single Resume", "Batch Ranking"])
-
-st.sidebar.markdown("---")
-st.sidebar.markdown("🌐 **[Live App](https://resumeiq-partner.streamlit.app/)**")
-st.sidebar.markdown("💻 **[GitHub Repository](https://github.com/Ankitkumar06102005/ResumeIQ)**")
-
-# ---------------------------------------------------------------------------
-# Engine — cached so the embedding model only loads once
-# ---------------------------------------------------------------------------
-@st.cache_resource(show_spinner="Loading AI models...")
-def load_engine() -> ScoringEngine:
+@st.cache_resource(show_spinner="Loading ResumeIQ scoring engine…")
+def load_engine():
     return ScoringEngine()
-
 
 engine = load_engine()
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+def safe(value):
+    return html.escape(str(value or ""))
 
-def _read_upload(uploaded_file) -> str:
-    """Read a Streamlit UploadedFile → plain text."""
+def read_upload(uploaded_file):
     try:
+        payload = uploaded_file.getvalue()
         if uploaded_file.name.lower().endswith(".pdf"):
-            return parse_resume(uploaded_file.read())
-        return uploaded_file.read().decode("utf-8", errors="ignore")
-    except Exception as e:
-        st.warning(f"Error reading {uploaded_file.name}: {e}")
+            return parse_resume(payload)
+        return payload.decode("utf-8", errors="ignore")
+    except Exception as exc:
+        st.warning(f"Could not read {uploaded_file.name}: {exc}")
         return ""
 
+def score_color(score):
+    if score >= 75: return "#4d9a78"
+    if score >= 50: return "#b77b38"
+    return "#c56e77"
 
-def _score_color(score: float) -> str:
-    if score >= 75:
-        return "#065f46"
-    if score >= 50:
-        return "#92400e"
-    return "#991b1b"
+def skill_pills(skills, warning=False):
+    if not skills:
+        st.caption("None detected.")
+        return
+    cls = "rr-pill rr-pill-warn" if warning else "rr-pill"
+    st.markdown("".join(f'<span class="{cls}">{safe(skill)}</span>' for skill in skills), unsafe_allow_html=True)
 
+def show_sidebar():
+    with st.sidebar:
+        st.markdown('<div class="rr-brand"><div class="rr-mark">✳</div><div><div class="rr-brand-name">ResumeIQ</div><div class="rr-brand-sub">Resume intelligence</div></div></div>', unsafe_allow_html=True)
+        st.caption("WORKSPACE")
+        page = st.radio(
+            "Workspace navigation",
+            ["Dashboard", "Applications", "Jobs", "Documents", "Analytics", "Settings"],
+            label_visibility="collapsed",
+            key="rr_nav",
+        )
+        st.markdown("---")
+        st.markdown("**Scoring configuration**")
+        st.caption("Adjust the contribution of each scoring signal. Weights must total 100%.")
+        skills = st.slider("Skills match", 0.0, 1.0, 0.50, 0.05, key="rr_w_skills")
+        exp = st.slider("Experience match", 0.0, 1.0, 0.30, 0.05, key="rr_w_exp")
+        edu = st.slider("Education match", 0.0, 1.0, 0.20, 0.05, key="rr_w_edu")
+        total = round(skills + exp + edu, 2)
+        if abs(total - 1.0) > .001:
+            st.warning(f"Weights total {total:.0%}. Adjust them to 100%.")
+        st.markdown("---")
+        st.markdown("🌐 [Live application](https://resumeiq-partner.streamlit.app/)")
+        st.markdown("💻 [GitHub repository](https://github.com/Ankitkumar06102005/ResumeIQ)")
+        st.markdown('<div class="rr-muted" style="padding-top:14px">AI-assisted decision support · Verify evidence before making hiring decisions.</div>', unsafe_allow_html=True)
+    return page, skills, exp, edu, abs(total - 1.0) <= .001
 
-def _render_skill_chips(skills: list[str], chip_class: str) -> None:
-    chips = "".join(
-        f'<span class="skill-chip {chip_class}">{s}</span>'
-        for s in skills
-    )
-    st.markdown(chips, unsafe_allow_html=True)
+def header(eyebrow, title, subtitle):
+    st.markdown(f'<div class="rr-eyebrow">{safe(eyebrow)}</div><div class="rr-title">{safe(title)}</div><div class="rr-subtitle">{safe(subtitle)}</div>', unsafe_allow_html=True)
 
-
-# ---------------------------------------------------------------------------
-# Single Resume mode
-# ---------------------------------------------------------------------------
+def render_result(result, candidate_name):
+    insights = getattr(result, "insights", {}) or {}
+    score = float(result.final_score)
+    left, right = st.columns([1.12, .88], gap="medium")
+    with left:
+        st.markdown('<div class="rr-card"><div class="rr-card-title">Resume match</div>', unsafe_allow_html=True)
+        c1, c2 = st.columns([.7, 1.3])
+        with c1:
+            st.markdown(f'<div class="rr-score" style="color:{score_color(score)}">{score:.0f}<span style="font-size:17px">/100</span></div><div class="rr-muted">Weighted match score</div>', unsafe_allow_html=True)
+        with c2:
+            st.markdown(f'<div style="font-weight:750;color:#4d9a78;margin-bottom:5px">{"Strong alignment" if score >= 75 else "Promising match" if score >= 50 else "Room to improve"}</div><div class="rr-subtitle">The score summarizes the current resume and job description using ResumeIQ’s existing scoring engine.</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Semantic similarity", f"{result.embedding_similarity:.0%}")
+        m2.metric("Skill coverage", f"{result.keyword_coverage:.0%}")
+        m3.metric("Entity match", f"{result.entity_match_score:.0%}")
+        st.markdown('<div class="rr-card"><div class="rr-card-title">Strongest evidence · Matched skills</div>', unsafe_allow_html=True)
+        skill_pills(result.matched_skills)
+        st.markdown('<div class="rr-divider"></div><div class="rr-card-title">Priority gaps · Missing skills</div>', unsafe_allow_html=True)
+        skill_pills(result.missing_skills, warning=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        with st.expander("View score breakdown and extracted entities"):
+            st.json({"weights": result.weights_used, "extracted_entities": result.extracted_entities})
+    with right:
+        st.markdown('<div class="rr-card"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div class="rr-mark" style="width:33px;height:33px;font-size:17px">✳</div><div><div style="font-weight:750;color:#37314d">ResumeIQ Assistant</div><div class="rr-muted">Resume review and tailoring</div></div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="rr-chat"><div class="rr-chat-label">YOUR REQUEST</div><div style="font-size:12px;color:#51496d">Review my resume against the selected job description.</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="rr-subtitle" style="margin:8px 0 12px">Here is how your resume aligns with the role and where to improve it.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="rr-chat"><div class="rr-chat-label">PRIORITY GAPS</div>', unsafe_allow_html=True)
+        gaps = insights.get("gaps", []) or []
+        if gaps:
+            for gap in gaps[:4]:
+                st.markdown(f'<div style="font-size:12px;color:#5c5478;padding:5px 0"><span style="color:#d0a166">△</span> <b>{safe(gap.get("title","Review item"))}</b><div style="font-size:11px;color:#8b85a1;padding-left:18px">{safe(gap.get("detail",""))}</div></div>', unsafe_allow_html=True)
+        elif result.missing_skills:
+            for skill in result.missing_skills[:4]:
+                st.markdown(f'<div style="font-size:12px;color:#5c5478;padding:4px 0">△ {safe(skill)}</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="rr-subtitle">No major gaps were returned by the current analysis.</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<div class="rr-chat"><div class="rr-chat-label">SUGGESTED IMPROVEMENTS</div>', unsafe_allow_html=True)
+        suggestions = insights.get("suggestions", []) or []
+        if suggestions:
+            for suggestion in suggestions[:3]:
+                st.markdown(f'<div style="font-size:12px;color:#5c5478;padding:5px 0">✧ <b>{safe(suggestion.get("title","Improvement"))}</b><div style="font-size:11px;color:#8b85a1;padding-left:18px">{safe(suggestion.get("action",""))}</div></div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="rr-subtitle">Run the analysis to get suggestions from the existing ResumeIQ advisor.</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        sample = insights.get("sample_tailored_resume", "")
+        if sample:
+            st.download_button("✧ Download tailored sample", sample, file_name=f"resumeiq_{safe(candidate_name).replace(' ','_')}_sample.md", mime="text/markdown", use_container_width=True)
+        st.markdown('<div class="rr-muted" style="padding:4px 0 0">Suggestions are drafts. Keep only claims that accurately reflect your experience.</div></div>', unsafe_allow_html=True)
 
 def single_resume_mode():
-    st.title("📄 ResumeIQ — Resume Scorer")
-    st.markdown("Paste or upload a resume and a job description to get an ATS score.")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.subheader("Job Description")
-        jd_upload = st.file_uploader("Upload JD (.txt)", type=["txt"], key="jd_file")
-        jd_text = st.text_area(
-            "Or paste JD text here",
-            value=jd_upload and _read_upload(jd_upload) or "",
-            height=300,
-            key="jd_text",
-        )
-
-    with col2:
-        st.subheader("Resume")
-        resume_upload = st.file_uploader("Upload Resume (.pdf or .txt)", type=["pdf", "txt"], key="resume_file")
-        resume_text = st.text_area(
-            "Or paste resume text here",
-            value=resume_upload and _read_upload(resume_upload) or "",
-            height=300,
-            key="resume_text",
-        )
-
-    candidate_name = st.text_input("Candidate name (optional)", value="Candidate")
-
-    if st.button("🚀 Score Resume", type="primary", use_container_width=True):
+    header("RESUME WORKSPACE", "Applications", "Compare your resume with a job description and see the evidence behind the match.")
+    result_area = st.container()
+    with st.form("resumeiq_score_form", clear_on_submit=False):
+        main, side = st.columns([1.02, .98], gap="medium")
+        with main:
+            st.markdown('<div class="rr-card-title">01 · Job description</div>', unsafe_allow_html=True)
+            jd_upload = st.file_uploader("Upload job description (.txt)", type=["txt"], key="rr_jd_upload")
+            if jd_upload and st.session_state.get("_rr_loaded_jd_name") != jd_upload.name:
+                st.session_state["rr_jd_text"] = read_upload(jd_upload)
+                st.session_state["_rr_loaded_jd_name"] = jd_upload.name
+            jd_text = st.text_area("Paste the job description", height=205, placeholder="Paste the role requirements, responsibilities, and preferred skills…", key="rr_jd_text")
+        with side:
+            st.markdown('<div class="rr-card-title">02 · Resume document</div>', unsafe_allow_html=True)
+            resume_upload = st.file_uploader("Upload resume (.pdf or .txt)", type=["pdf", "txt"], key="rr_resume_upload")
+            if resume_upload and st.session_state.get("_rr_loaded_resume_name") != resume_upload.name:
+                st.session_state["rr_resume_text"] = read_upload(resume_upload)
+                st.session_state["_rr_loaded_resume_name"] = resume_upload.name
+            resume_text = st.text_area("Or paste resume text", height=205, placeholder="Paste your resume text or upload a PDF/TXT file…", key="rr_resume_text")
+        candidate = st.text_input("Candidate name (optional)", value="Candidate", key="rr_candidate")
+        submitted = st.form_submit_button("✧ Analyze resume", type="primary", use_container_width=True)
+    if submitted:
         if not jd_text.strip() or not resume_text.strip():
             st.error("Please provide both a resume and a job description.")
-            return
-
-        with st.spinner("Scoring..."):
+        elif not st.session_state.get("rr_weights_valid", True):
+            st.error("Adjust the scoring weights in the sidebar so they total 100%.")
+        else:
             try:
-                weights = ScoringWeights(w_skills, w_exp, w_edu)
-                result = engine.score(resume_text, jd_text, candidate_name, weights)
-            except Exception as e:
-                st.error(f"Scoring failed: {e}")
-                return
-
-        # Results
-        st.markdown("---")
-        c1, c2, c3, c4 = st.columns(4)
-
-        color = _score_color(result.final_score)
-        c1.markdown(
-            f'<div class="score-box"><div class="score-number" style="color:{color}">'
-            f'{result.final_score:.0f}</div><div>ATS Score / 100</div></div>',
-            unsafe_allow_html=True,
-        )
-        c2.metric("Semantic Similarity", f"{result.embedding_similarity:.2%}")
-        c3.metric("Skill Coverage", f"{result.keyword_coverage:.2%}")
-        c4.metric("Entity Match", f"{result.entity_match_score:.2%}")
-
-        st.markdown("---")
-        col_a, col_b = st.columns(2)
-
-        with col_a:
-            st.subheader(f"✅ Matched Skills ({len(result.matched_skills)})")
-            if result.matched_skills:
-                _render_skill_chips(result.matched_skills, "matched")
-            else:
-                st.info("No matching skills detected.")
-
-        with col_b:
-            st.subheader(f"❌ Missing Skills ({len(result.missing_skills)})")
-            if result.missing_skills:
-                _render_skill_chips(result.missing_skills, "missing")
-            else:
-                st.success("No skill gaps detected.")
-
-        # -------------------------------------------------------------------
-        # AI Diagnosis & Optimization Advisory
-        # -------------------------------------------------------------------
-        insights = getattr(result, "insights", {})
-        if insights:
+                weights = ScoringWeights(st.session_state["rr_w_skills"], st.session_state["rr_w_exp"], st.session_state["rr_w_edu"])
+                with st.spinner("Extracting signals and scoring the resume…"):
+                    result = engine.score(resume_text, jd_text, candidate.strip() or "Candidate", weights)
+                st.session_state["rr_latest_result"] = result
+                st.session_state["rr_latest_candidate"] = candidate.strip() or "Candidate"
+            except Exception as exc:
+                st.error(f"Resume analysis failed: {exc}")
+    with result_area:
+        result = st.session_state.get("rr_latest_result")
+        if result:
             st.markdown("---")
-            st.subheader("🧠 AI Diagnosis & Optimization Advisory")
-            st.markdown("Actionable insights on what this resume lacks, recommended fixes, and an ATS-optimized sample template.")
-
-            tab_gaps, tab_suggestions, tab_sample = st.tabs([
-                "🚨 What It Lacks (Critical Gaps)",
-                "💡 Suggested Changes & Fixes",
-                "✨ Tailored 95+ Resume Template",
-            ])
-
-            with tab_gaps:
-                impact = insights.get("impact_metrics", {})
-                if impact:
-                    m1, m2, m3, m4 = st.columns(4)
-                    m1.metric("Quantified Metrics", f"{impact.get('metric_percentage', 0)}%", help="% of bullet points with numbers, %, or scale")
-                    m2.metric("Impact Grade", impact.get("metric_grade", "N/A"))
-                    m3.metric("Power Verbs", impact.get("power_verbs_count", 0))
-                    m4.metric("Passive Phrases", len(impact.get("weak_phrases_detected", [])))
-
-                gaps = insights.get("gaps", [])
-                if gaps:
-                    for g in gaps:
-                        sev_class = "gap-badge-high" if g["severity"] == "High" else "gap-badge-med"
-                        st.markdown(
-                            f"""<div class="gap-card">
-                                <strong>{g['title']}</strong> <span class="{sev_class}">{g['severity']} Priority</span>
-                                <div style="font-size: 13px; color: #475569; margin-top: 4px;">{g['detail']}</div>
-                            </div>""",
-                            unsafe_allow_html=True,
-                        )
-                else:
-                    st.success("🎉 No critical gaps detected! This resume aligns closely with the job requirements.")
-
-            with tab_suggestions:
-                suggestions = insights.get("suggestions", [])
-                if suggestions:
-                    for s in suggestions:
-                        st.markdown(
-                            f"""<div class="suggestion-card">
-                                <h4 style="margin: 0 0 8px 0; color: #1e293b;">📌 {s['title']}</h4>
-                                <div style="font-size: 14px; color: #334155; margin-bottom: 8px;">{s['action']}</div>
-                                <div class="example-before"><strong>❌ Before:</strong> {s['before']}</div>
-                                <div class="example-after"><strong>✅ After (Google X-Y-Z Formula):</strong> {s['after']}</div>
-                            </div>""",
-                            unsafe_allow_html=True,
-                        )
-                else:
-                    st.info("No immediate changes needed. The resume demonstrates strong metrics and action verbs.")
-
-            with tab_sample:
-                sample_resume = insights.get("sample_tailored_resume", "")
-                if sample_resume:
-                    st.markdown("Use this tailored template as a benchmark to rewrite your resume. It incorporates the missing technical competencies, high metric density, and leadership action verbs.")
-                    st.download_button(
-                        "📥 Download Sample Template (.md)",
-                        sample_resume,
-                        file_name=f"resumeiq_{candidate_name.lower().replace(' ', '_')}_sample.md",
-                        mime="text/markdown",
-                        key="dl_sample_resume",
-                    )
-                    st.code(sample_resume, language="markdown")
-
-        with st.expander("🔍 Extracted Entities (NER)"):
-            for etype, items in result.extracted_entities.items():
-                if items:
-                    st.write(f"**{etype}:** {', '.join(items)}")
-
-        with st.expander("⚖️ Score Breakdown"):
-            st.json({
-                "final_score": result.final_score,
-                "embedding_similarity": result.embedding_similarity,
-                "keyword_coverage": result.keyword_coverage,
-                "entity_match_score": result.entity_match_score,
-                "weights": result.weights_used,
-            })
-
-
-# ---------------------------------------------------------------------------
-# Batch ranking mode
-# ---------------------------------------------------------------------------
+            header("ANALYSIS RESULTS", "Your match, explained.", "Evidence and suggested improvements returned by the existing scoring engine.")
+            render_result(result, st.session_state.get("rr_latest_candidate", "Candidate"))
+        else:
+            st.markdown('<div class="rr-card"><div class="rr-card-title">YOUR ANALYSIS WILL APPEAR HERE</div><div style="font-size:18px;font-weight:750;color:#403953">Upload a resume and add a job description.</div><div class="rr-subtitle" style="margin-top:7px">ResumeIQ will extract text, calculate the match score, identify matched and missing skills, and show the existing advisor’s suggestions.</div></div>', unsafe_allow_html=True)
 
 def batch_ranking_mode():
-    st.title("📊 ResumeIQ — Batch Ranker")
-    st.markdown("Upload one JD and multiple resumes to rank candidates.")
-
-    st.subheader("Job Description")
-    jd_upload = st.file_uploader("Upload JD (.txt)", type=["txt"], key="batch_jd")
-    jd_text = st.text_area(
-        "Or paste JD text",
-        value=jd_upload and _read_upload(jd_upload) or "",
-        height=200,
-        key="batch_jd_text",
-    )
-
-    st.subheader("Resumes")
-    resume_files = st.file_uploader(
-        "Upload resumes (PDF or TXT — multiple allowed)",
-        type=["pdf", "txt"],
-        accept_multiple_files=True,
-        key="batch_resumes",
-    )
-
-    if st.button("🏆 Rank All Candidates", type="primary", use_container_width=True):
-        if not jd_text.strip():
-            st.error("Please provide a job description.")
-            return
-        if not resume_files:
-            st.error("Please upload at least one resume.")
-            return
-
-        with st.spinner(f"Scoring {len(resume_files)} resume(s)..."):
-            resumes = []
-            for f in resume_files:
-                name = os.path.splitext(f.name)[0]
-                text = _read_upload(f)
-                if text and text.strip():
-                    resumes.append((name, text))
-                else:
-                    st.warning(f"Skipping {f.name} — could not extract readable text.")
-
-            if not resumes:
-                st.error("No readable text found in any of the uploaded resumes.")
-                return
-
+    header("CANDIDATE WORKSPACE", "Batch ranking", "Rank multiple resumes against the same role using ResumeIQ’s existing scoring engine.")
+    jd_upload = st.file_uploader("Upload job description (.txt)", type=["txt"], key="rr_batch_jd_upload")
+    if jd_upload and st.session_state.get("_rr_loaded_batch_jd_name") != jd_upload.name:
+        st.session_state["rr_batch_jd"] = read_upload(jd_upload)
+        st.session_state["_rr_loaded_batch_jd_name"] = jd_upload.name
+    jd_text = st.text_area("Job description", height=170, key="rr_batch_jd")
+    files = st.file_uploader("Upload resumes (PDF or TXT)", type=["pdf", "txt"], accept_multiple_files=True, key="rr_batch_files")
+    if st.button("Rank candidates", type="primary", use_container_width=True):
+        if not jd_text.strip() or not files:
+            st.error("Add a job description and at least one resume.")
+        elif not st.session_state.get("rr_weights_valid", True):
+            st.error("Adjust the scoring weights in the sidebar so they total 100%.")
+        else:
             try:
-                weights = ScoringWeights(w_skills, w_exp, w_edu)
-                ranked = engine.rank(resumes, jd_text, weights)
-            except Exception as e:
-                st.error(f"Ranking failed: {e}")
-                return
+                candidates = []
+                for file in files:
+                    text = read_upload(file)
+                    if text.strip():
+                        candidates.append((os.path.splitext(file.name)[0], text))
+                if not candidates:
+                    st.error("No readable resume text was found.")
+                else:
+                    weights = ScoringWeights(st.session_state["rr_w_skills"], st.session_state["rr_w_exp"], st.session_state["rr_w_edu"])
+                    with st.spinner(f"Ranking {len(candidates)} resumes…"):
+                        ranked = engine.rank(candidates, jd_text, weights)
+                    df = pd.DataFrame([{"Rank": i + 1, "Candidate": r.candidate_name, "Match score": round(r.final_score, 1), "Semantic similarity": f"{r.embedding_similarity:.0%}", "Skill coverage": f"{r.keyword_coverage:.0%}", "Matched skills": len(r.matched_skills), "Missing skills": len(r.missing_skills)} for i, r in enumerate(ranked)])
+                    st.dataframe(df, use_container_width=True, hide_index=True)
+                    st.download_button("Download ranking CSV", df.to_csv(index=False).encode("utf-8"), file_name="resumeiq_rankings.csv", mime="text/csv")
+            except Exception as exc:
+                st.error(f"Ranking failed: {exc}")
 
-        st.markdown("---")
-        st.subheader("🏆 Candidate Rankings")
+def main():
+    page, skills, exp, edu, valid = show_sidebar()
+    st.session_state["rr_weights_valid"] = valid
+    if page == "Settings":
+        header("PREFERENCES", "Scoring settings", "Tune the weighting used by the existing resume matching engine.")
+        st.info(f"Current weights — Skills {skills:.0%}, Experience {exp:.0%}, Education {edu:.0%}. Total: {skills + exp + edu:.0%}.")
+        st.markdown("The score is a decision-support signal. It should not be the sole basis for hiring decisions.")
+    elif page == "Analytics":
+        header("INSIGHTS", "Model evaluation", "Reference benchmark values documented in the project repository.")
+        st.caption("These are Phase 1 benchmark values from the repository README, not live measurements from this session.")
+        st.dataframe(pd.DataFrame([
+            {"Model": "Logistic Regression", "Accuracy": 0.7565, "Precision": 0.7865, "Recall": 0.7042, "F1": 0.7431},
+            {"Model": "Random Forest", "Accuracy": 0.8179, "Precision": 0.8319, "Recall": 0.7968, "F1": 0.8140},
+            {"Model": "XGBoost", "Accuracy": 0.8159, "Precision": 0.8369, "Recall": 0.7847, "F1": 0.8100},
+        ]), use_container_width=True, hide_index=True)
+    elif page == "Documents":
+        header("DOCUMENTS", "Resume documents", "Upload PDF/TXT resumes from the Applications workspace to extract and compare text.")
+        st.info("Resume files are parsed during analysis. Use Applications to score a single resume, or Jobs to rank multiple resumes.")
+    elif page == "Jobs":
+        batch_ranking_mode()
+    elif page == "Applications":
+        single_resume_mode()
+    else:
+        header("OVERVIEW", "Your resume workspace.", "Tailor your resume to a role with evidence-based scoring and clear improvement suggestions.")
+        a, b = st.columns([1.25, .75], gap="medium")
+        with a:
+            st.markdown('<div class="rr-card"><div class="rr-card-title">GET STARTED</div><div style="font-size:20px;font-weight:750;color:#403953">Find the strongest version of your resume.</div><div class="rr-subtitle" style="margin:8px 0 16px">Start with a job description and your current resume. ResumeIQ compares skills, semantic relevance, and extracted entities.</div></div>', unsafe_allow_html=True)
+            st.button("Start resume analysis →", type="primary", use_container_width=True, on_click=lambda: st.session_state.update({"rr_nav": "Applications"}))
+        with b:
+            st.markdown('<div class="rr-card"><div class="rr-card-title">WHAT RESUMEIQ CHECKS</div><div style="padding:7px 0;color:#5c5478;font-size:13px">✓ Semantic relevance</div><div style="padding:7px 0;color:#5c5478;font-size:13px">✓ Skill coverage and gaps</div><div style="padding:7px 0;color:#5c5478;font-size:13px">✓ Entity and education signals</div><div style="padding:7px 0;color:#5c5478;font-size:13px">✓ Advisor suggestions and rewrite examples</div></div>', unsafe_allow_html=True)
+        result = st.session_state.get("rr_latest_result")
+        if result:
+            st.markdown("---")
+            header("LATEST ANALYSIS", "Continue where you left off.", "Latest result retained in this Streamlit session.")
+            render_result(result, st.session_state.get("rr_latest_candidate", "Candidate"))
 
-        # Leaderboard table
-        table_data = []
-        for i, r in enumerate(ranked):
-            table_data.append({
-                "Rank": i + 1,
-                "Candidate": r.candidate_name,
-                "Score": f"{r.final_score:.1f}",
-                "Semantic Sim": f"{r.embedding_similarity:.2%}",
-                "Skill Coverage": f"{r.keyword_coverage:.2%}",
-                "Matched Skills": len(r.matched_skills),
-                "Missing Skills": len(r.missing_skills),
-            })
-
-        df = pd.DataFrame(table_data)
-        st.dataframe(df, use_container_width=True, hide_index=True)
-
-        # Detailed breakdown per candidate
-        st.markdown("---")
-        st.subheader("📋 Detailed Breakdown")
-        for r in ranked:
-            with st.expander(f"#{ranked.index(r)+1} — {r.candidate_name} ({r.final_score:.1f}/100)"):
-                ca, cb = st.columns(2)
-                with ca:
-                    st.write("**✅ Matched Skills**")
-                    _render_skill_chips(r.matched_skills or ["(none)"], "matched")
-                with cb:
-                    st.write("**❌ Missing Skills**")
-                    _render_skill_chips(r.missing_skills or ["(none)"], "missing")
-
-                insights = getattr(r, "insights", {})
-                gaps = insights.get("gaps", [])
-                if gaps:
-                    st.markdown("**🚨 Key Deficiencies / What This Candidate Lacks:**")
-                    for g in gaps[:2]:
-                        st.markdown(f"- **{g['title']}**: {g['detail']}")
-
-        # Download results
-        csv = df.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            "⬇️ Download Results CSV",
-            csv,
-            file_name="resumeiq_rankings.csv",
-            mime="text/csv",
-        )
-
-
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
-
-if mode == "Single Resume":
-    single_resume_mode()
-else:
-    batch_ranking_mode()
+if __name__ == "__main__":
+    main()
