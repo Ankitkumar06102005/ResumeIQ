@@ -5,7 +5,7 @@
 
 Turn resumes into actionable hiring insights.
 
-[![Live App](https://img.shields.io/badge/Live%20Demo-Streamlit-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://resumeiq-partner.streamlit.app/)
+[![Live App](https://img.shields.io/badge/Live%20Demo-ResumeIQ2-6D56BD?style=for-the-badge&logo=streamlit&logoColor=white)](https://resumeiq2.streamlit.app/)
 ![Python](https://img.shields.io/badge/Python-3.10--3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?style=for-the-badge&logo=fastapi)
 ![NLP](https://img.shields.io/badge/NLP-Explainable%20Scoring-8E44AD?style=for-the-badge)
@@ -20,31 +20,39 @@ ResumeIQ is an explainable AI-assisted applicant-tracking prototype that scores 
 
 The system also diagnoses resume weaknesses, suggests quantified X-Y-Z improvements, audits power verbs and metrics, and generates tailored sample resume templates.
 
+**Try the live application:** [resumeiq2.streamlit.app](https://resumeiq2.streamlit.app/) · **Source code:** [GitHub repository](https://github.com/Ankitkumar06102005/ResumeIQ)
+
+## ✨ Key capabilities
+
+- **Resume ingestion:** accepts PDF and TXT resumes alongside a job description.
+- **Explainable matching:** reports an overall score with skill coverage, semantic similarity, and other extracted signals.
+- **Gap analysis:** surfaces matched and missing skills to guide resume tailoring.
+- **Batch ranking:** compares multiple resumes against one role.
+- **Configurable scoring:** adjust scoring weights for skills, experience, and education.
+- **Advisor insights:** presents improvement suggestions and tailored sample content; candidates should verify every suggested claim before using it.
+
 ## 🧠 Architecture
 
 ```mermaid
 flowchart TD
-    R[Resume PDF / TXT] --> APP[Streamlit Recruiter Dashboard]
+    R[Resume PDF / TXT] --> APP[Streamlit Dashboard]
     JD[Job Description] --> APP
-    APP --> API[FastAPI Service]
     APP --> ENG[Scoring Engine]
+    APP --> API[FastAPI Service]
     API --> ENG
     R --> EXT[Text Extraction]
     EXT --> NORM[Normalization / NLP Preprocessing]
     JD --> NORM
     NORM --> TF[TF-IDF Similarity]
-    NORM --> EMB[MiniLM Sentence Embeddings]
-    NORM --> SK[Skill Coverage + Gap Detection]
+    NORM --> EMB[Optional MiniLM Embeddings]
+    NORM --> SK[Skill Coverage and Gap Detection]
     NORM --> ENT[Entity Extraction]
     TF --> SCORE[Weighted Explainable Score]
     EMB --> SCORE
     SK --> SCORE
     ENT --> SCORE
     SCORE --> RANK[Candidate Ranking]
-    SCORE --> DIAG[AI Resume Diagnosis]
-    DIAG --> OPT[Actionable Suggestions + X-Y-Z Rewrites]
-    OPT --> OUT[Recruiter Insights]
-    RANK --> OUT
+    SCORE --> INSIGHTS[Evidence and Improvement Suggestions]
 ```
 
 ## 🔄 Processing workflow
@@ -55,7 +63,7 @@ flowchart TD
 4. **Compare:** evaluate keyword coverage, semantic similarity, skills, entities, experience, and education signals.
 5. **Score:** combine enabled signals using recruiter-controlled weights into an explainable 0–100 score.
 6. **Rank:** sort candidates and expose matched and missing evidence.
-7. **Improve:** generate diagnosis, quantified rewrite suggestions, power-verb audits, and tailored templates.
+7. **Improve:** display diagnosis and suggestions for the user to review and validate.
 
 ## 🧪 Modeling phases
 
@@ -65,10 +73,12 @@ flowchart TD
 | 2 | `all-MiniLM-L6-v2` embeddings and skill-gap detection |
 | 3 | Regex NER with optional DistilBERT NER training utility |
 | 4 | Streamlit dashboard, uploads, adjustable weights, multi-resume ranking |
-| 5 | FastAPI endpoints and Hugging Face Spaces-compatible entry point |
+| 5 | FastAPI endpoints |
 | 6 | AI diagnosis, X-Y-Z suggestions, metrics/power-verb audit, tailored templates |
 
 ## 📊 Phase 1 benchmark
+
+These are the project's previously recorded Phase 1 benchmark values, not live production measurements.
 
 | Model | Accuracy | Precision | Recall | F1 |
 |---|---:|---:|---:|---:|
@@ -81,39 +91,45 @@ flowchart TD
 | Method | Endpoint | Purpose |
 |---|---|---|
 | GET | `/health` | Service health |
-| POST | `/score` | Score one resume/JD pair |
+| POST | `/score` | Score one resume/job-description pair |
 | POST | `/rank` | Rank multiple candidates |
 | POST | `/score-pdf` | Score an uploaded PDF resume |
 
-Interactive docs: `http://127.0.0.1:8000/docs`
+Interactive API docs when running locally: `http://127.0.0.1:8000/docs`.
 
 ## 🚀 Quick start
 
+Create and activate a virtual environment, then install the project dependencies:
+
 ```bash
 python -m venv .venv
-.venv\Scripts\activate
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-python src/prepare_data.py
-python src/baseline_model.py
-streamlit run app.py
 ```
 
-Optional training stack:
+Launch the Streamlit UI:
 
 ```bash
-pip install -r requirements-training.txt
+streamlit run app/streamlit_app.py
 ```
 
-Run the API:
+Run the API separately:
 
 ```bash
 uvicorn src.api:app --reload --port 8000
 ```
 
-Run tests:
+Run the test suite:
 
 ```bash
 python -m pytest tests -v -p no:cacheprovider
+```
+
+Optional training dependencies:
+
+```bash
+pip install -r requirements-training.txt
 ```
 
 ## 📁 Structure
@@ -121,19 +137,19 @@ python -m pytest tests -v -p no:cacheprovider
 ```text
 app/                 Streamlit recruiter dashboard
 src/                 scoring, API, NLP, and training modules
-tests/               regression tests
+tests/               API contract and scoring integration tests
 data/processed/      generated training and evaluation outputs
 models/              serialized model artifacts
 ```
 
 ## ⚖️ Responsible-use note
 
-ResumeIQ is a decision-support tool. Recruiters should validate outputs, inspect evidence, and avoid using an automated score as the sole basis for employment decisions.
+ResumeIQ is a decision-support tool. Recruiters should validate outputs, inspect the underlying evidence, and avoid using an automated score as the sole basis for employment decisions. AI-generated suggestions are drafts and should never introduce experience, skills, or achievements that a candidate cannot substantiate.
 
 ---
 
 <div align="center">
 
-[🚀 Try ResumeIQ Live](https://resumeiq-partner.streamlit.app/)
+[🚀 Open ResumeIQ Live](https://resumeiq2.streamlit.app/) · [💻 View the source on GitHub](https://github.com/Ankitkumar06102005/ResumeIQ)
 
 </div>
