@@ -69,9 +69,10 @@ def safe(value):
 
 def read_upload(uploaded_file):
     try:
+        payload = uploaded_file.getvalue()
         if uploaded_file.name.lower().endswith(".pdf"):
-            return parse_resume(uploaded_file.read())
-        return uploaded_file.read().decode("utf-8", errors="ignore")
+            return parse_resume(payload)
+        return payload.decode("utf-8", errors="ignore")
     except Exception as exc:
         st.warning(f"Could not read {uploaded_file.name}: {exc}")
         return ""
