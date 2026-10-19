@@ -123,7 +123,7 @@ def render_result(result, candidate_name):
     left, right = st.columns([1.12, .88], gap="medium")
     with left:
         st.markdown('<div class="rr-card"><div class="rr-card-title">Resume match</div>', unsafe_allow_html=True)
-        c1, c2 = st.columns([.7, 1.3], vertical_alignment="center")
+        c1, c2 = st.columns([.7, 1.3])
         with c1:
             st.markdown(f'<div class="rr-score" style="color:{score_color(score)}">{score:.0f}<span style="font-size:17px">/100</span></div><div class="rr-muted">Weighted match score</div>', unsafe_allow_html=True)
         with c2:
@@ -262,9 +262,7 @@ def main():
         a, b = st.columns([1.25, .75], gap="medium")
         with a:
             st.markdown('<div class="rr-card"><div class="rr-card-title">GET STARTED</div><div style="font-size:20px;font-weight:750;color:#403953">Find the strongest version of your resume.</div><div class="rr-subtitle" style="margin:8px 0 16px">Start with a job description and your current resume. ResumeIQ compares skills, semantic relevance, and extracted entities.</div></div>', unsafe_allow_html=True)
-            if st.button("Start resume analysis →", type="primary", use_container_width=True):
-                st.session_state["rr_nav"] = "Applications"
-                st.rerun()
+            st.button("Start resume analysis →", type="primary", use_container_width=True, on_click=lambda: st.session_state.update({"rr_nav": "Applications"}))
         with b:
             st.markdown('<div class="rr-card"><div class="rr-card-title">WHAT RESUMEIQ CHECKS</div><div style="padding:7px 0;color:#5c5478;font-size:13px">✓ Semantic relevance</div><div style="padding:7px 0;color:#5c5478;font-size:13px">✓ Skill coverage and gaps</div><div style="padding:7px 0;color:#5c5478;font-size:13px">✓ Entity and education signals</div><div style="padding:7px 0;color:#5c5478;font-size:13px">✓ Advisor suggestions and rewrite examples</div></div>', unsafe_allow_html=True)
         result = st.session_state.get("rr_latest_result")
